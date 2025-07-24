@@ -3,20 +3,12 @@ import joblib
 import fitz  # PyMuPDF
 import os
 
-# --- Configuration ---
-MODEL_PATH = 'models\pdf_text_classifier_model.pkl'
-PDF_FILE_PATH = 'sample_dataset/pdfs/file02.pdf'  # <--- Set your PDF path here
-DEBUG_CSV_PATH = 'all_predictions_debug.csv'
-# --- End Configuration ---
-
-
 def extract_pdf_data(pdf_path):
     """Extracts text and basic metadata from the PDF."""
     try:
         doc = fitz.open(pdf_path)
     except Exception as e:
-        print(f"Error opening PDF file: {e}")
-        return None
+        raise RuntimeError(f"Error opening PDF file: {e}")
 
     extracted_data = []
     for page_num, page in enumerate(doc):
@@ -36,39 +28,28 @@ def extract_pdf_data(pdf_path):
                             })
     return extracted_data
 
+def predict_from_pdf(pdf_path, model_path='model\pdf_text_classifier_model.pkl'):
+    
+    """Extracts features, runs model prediction, returns DataFrame (no CSV writing)."""
 
-def main():
-    print("--- Starting PDF Classification ---")
+    if not os.path.exists(model_path):
+        raise FileNotFoundError(f"Model file not found at '{model_path}'")
+    if not os.path.exists(pdf_path):
+        raise FileNotFoundError(f"PDF file not found at '{pdf_path}'")
 
-    # 1. Check file existence
-    if not os.path.exists(MODEL_PATH):
-        print(f"ERROR: Model file not found at '{MODEL_PATH}'")
-        return
-    if not os.path.exists(PDF_FILE_PATH):
-        print(f"ERROR: PDF file not found at '{PDF_FILE_PATH}'")
-        return
+    # Load model
+    model_pipeline = joblib.load(model_path)
 
-    # 2. Load model
-    print(f"Loading model from '{MODEL_PATH}'...")
-    try:
-        model_pipeline = joblib.load(MODEL_PATH)
-    except Exception as e:
-        print(f"Error loading model: {e}")
-        return
-    print("Model loaded successfully.")
-
-    # 3. Extract features
-    print(f"Extracting text and features from '{PDF_FILE_PATH}'...")
-    pdf_data = extract_pdf_data(PDF_FILE_PATH)
-
+    # Extract text blocks
+    pdf_data = extract_pdf_data(pdf_path)
     if not pdf_data:
-        print("No text could be extracted from the PDF.")
-        return
+        raise ValueError("No text could be extracted from the PDF.")
 
+    # Create DataFrame
     df = pd.DataFrame(pdf_data)
     df['is_bold'] = df['is_bold'].astype(int)
 
-    # --- Add Missing Features (must match training features) ---
+    # Add features (must match training)
     df['char_count'] = df['text'].apply(len)
     df['word_count'] = df['text'].apply(lambda x: len(str(x).split()))
     df['ends_with_period'] = df['text'].str.endswith('.')
@@ -87,31 +68,10 @@ def main():
     df['is_centered'] = False
     if 'font_name' not in df.columns:
         df['font_name'] = 'default'
-
-    # --- Optional dummy column if your pipeline expects it ---
     if 'a' not in df.columns:
         df['a'] = pd.NA
 
-    print(f"Extracted {len(df)} text blocks.")
+    # Predict
+    df['predicted_label'] = model_pipeline.predict(df)
 
-    # 4. Predict
-    print("Predicting labels...")
-    predictions = model_pipeline.predict(df)
-    df['predicted_label'] = predictions
-
-    # 5. Save and print results
-    print(f"\nSaving ALL predictions to '{DEBUG_CSV_PATH}'...")
-    df.to_csv(DEBUG_CSV_PATH, index=False, encoding='utf-8-sig')
-    print("Debug CSV file created.")
-
-    print("\n--- Prediction Summary ---")
-    print(f"Unique labels predicted: {df['predicted_label'].unique()}")
-
-    print("\n--- Full Output ---")
-    print(df[['text', 'predicted_label', 'page_number']].to_string())
-
-    print("\n--- DONE ---")
-
-
-if __name__ == "__main__":
-    main()
+    return df  # Return the DataFrame to be used elsewhere
