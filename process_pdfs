@@ -5,7 +5,7 @@ from csv_to_json import extract_headings_from_df  # Function that converts df to
 
 def process_pdfs():
     input_dir = Path("app\input")
-    output_dir = Path("app\outputs")
+    output_dir = Path("app\output")
     output_dir.mkdir(parents=True, exist_ok=True)
 
     pdf_files = list(input_dir.glob("*.pdf"))
