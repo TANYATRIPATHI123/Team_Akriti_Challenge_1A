@@ -75,7 +75,7 @@ app/outputs/
 1. *Build the Docker image (on AMD64 architecture)*
 
 bash
-docker build --platform linux/amd64 -t pdf-heading-classifier .
+docker run -it adobe-india-hackathon25-main:round1a
 
 
 2. *Prepare input/output folders on host*
